@@ -1,0 +1,87 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+*.log
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.sdf
+*.cache
+*.dbmdl
+*.VC.db
+*.opendb
+
+# Visual Studio 2019/2022 generated files
+.vs/
+*.VC.VC.opendb
+*.VC.db
+
+# Build logs
+*.tlog
+
+# NCB files (intellisense)
+*.ncb
+
+# Compiled DLLs and EXEs
+*.dll
+*.exe
+*.pdb
+*.mdb
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Auto-generated files
+*.iobj
+*.ipdb
+*.idb
+*.ilk
+
+# Precompiled headers
+*.pch
+*.gch
+
+# Publish and package output
+publish/
+*.publish.xml
+
+# NuGet
+*.nupkg
+*.nuspec
+packages/
+project.lock.json
+project.fragment.lock.json
+
+# Resharper / Rider
+_ReSharper*/
+*.DotSettings.user
+
+# CMake files (if used)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Test Results
+TestResults/
+
+# Backup files
+*~
+*.orig
+
+# Crash dumps
+*.dmp
+
+# VS files
+x64/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+
+# extras
+*.docx
