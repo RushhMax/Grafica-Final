@@ -85,3 +85,7 @@ x64/
 
 # extras
 *.docx
+sapito/
+
+# vscode
+.vscode/

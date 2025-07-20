@@ -1,7 +1,17 @@
 #include <opencv2/opencv.hpp>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <GL/freeglut.h>
+#include <glm/glm.hpp>
 #include <iostream>
 
-std::pair<bool, cv::Point3f>  chess_center_point(cv::Mat frame, cv::Size patternSize, std::vector<cv::Point2f> corners) {
+struct chessboardDetection {
+    bool detected;
+    cv::Point3f center;
+    cv::Point3f a;
+};
+
+std::pair<bool, cv::Point3f> chess_center_point(cv::Mat frame, cv::Size patternSize, std::vector<cv::Point2f> corners) {
     cv::Mat gray;
 
     cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
@@ -54,9 +64,9 @@ int main() {
         cap >> frame;
         if (frame.empty()) break;
 
-        auto chess_detect = chess_center_point(frame, patternSize, corners);
+        auto [detected, center] = chess_center_point(frame, patternSize, corners);
 
-        if (chess_detect.first) cv::putText(frame, "Ajedrez detectado", { chess_detect.second.x, chess_detect.second.y }, cv::FONT_HERSHEY_SIMPLEX, 1.0, { 0, 255, 0 }, 2);
+        if (detected) cv::putText(frame, "Ajedrez detectado", { (int)center.x, (int)center.y }, cv::FONT_HERSHEY_SIMPLEX, 1.0, { 0, 255, 0 }, 2);
 
         cv::imshow("Detección de ajedrez", frame);
         if (cv::waitKey(1) == 27) running = false; // 27 -> Esc; 1 -> maxFPS = No limit FPS
