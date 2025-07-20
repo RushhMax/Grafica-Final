@@ -3,6 +3,7 @@
 #include <format>
 #include <iostream>
 #include <GLFW/glfw3.h>
+#include <glm/ext/scalar_constants.hpp>
 #include <string>
 
 #include "shared_data.h"
