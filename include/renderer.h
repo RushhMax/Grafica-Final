@@ -1,5 +1,10 @@
 #pragma once
 
+// comprobación glew
+#ifndef __gl_h_
+#include <GL/glew.h>
+#endif
+
 #include <array>
 #include <format>
 #include <iostream>
@@ -13,7 +18,16 @@
 const unsigned int WINDOW_WIDTH = 800;
 const unsigned int WINDOW_HEIGHT = 600;
 
-constexpr char const* TITLE = "prueba con esfera cambiar el nombre para producción";
+constexpr char const* TITLE = "Star Wars AR";
+
+/*
+* pares: vert
+* impares: frag
+* primeros dos para el background
+* últimos dos para el 3d object
+*/
+const std::string SHADER_ABSOLUTE_PATH = "E:\\compgrafica\\resources\\";
+const std::array<std::string, 4> SHADER_PATH = { "background.vert", "background.frag", "object.vert", "object.frag" };
 
 class GLException : public std::runtime_error {
 public:
@@ -29,11 +43,11 @@ class Renderer {
 	void initBGQuad();
 	void initGL();
 
-	GLuint bgShaderProgram;
+	Shader bgShaderProgram;
 	GLuint bgVAO;
 	GLuint bgVBO;
 	void updateBG();
-	void renderBG();
+	void renderBG() const;
 
 	GLuint objShaderProgram;
 	GLuint objVAO;

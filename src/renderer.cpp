@@ -27,7 +27,7 @@ GLFWwindow* initWindow() {
 
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, TITLE, nullptr, nullptr);
 	if (!window) {
@@ -54,7 +54,7 @@ void configureOpenGL() {
 
 void Renderer::initBG() {
 	std::lock_guard lock(shared.mut);
-
+	
 	glGenTextures(1, &shared.cam_texture);
 	glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
 
@@ -63,11 +63,28 @@ void Renderer::initBG() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
 
-	glTexImage2D(
-		GL_TEXTURE_2D, 0, GL_RGB,
-		shared.frame.cols, shared.frame.rows, 0,
-		GL_BGR, GL_UNSIGNED_BYTE, shared.frame.ptr()
-	);
+	if (shared.frames[shared.read_idx].empty()) {
+		const int default_width = 640;
+		const int default_height = 480;
+		std::vector<unsigned char> empty_data(default_width * default_height * 3, 0);
+
+		glTexImage2D(
+			GL_TEXTURE_2D, 0, GL_RGB,
+			default_width, default_height, 0,
+			GL_BGR, GL_UNSIGNED_BYTE, empty_data.data()
+		);
+	}
+	else {
+		cv::Mat& current_frame = shared.frames[shared.read_idx];
+		glTexImage2D(
+			GL_TEXTURE_2D, 0, GL_RGB,
+			current_frame.cols, current_frame.rows, 0,
+			GL_BGR, GL_UNSIGNED_BYTE, current_frame.ptr()
+		);
+	}
+
+	shared.processed = true;
+	shared.cv.notify_all();
 
 	glGenerateMipmap(GL_TEXTURE_2D);
 }
@@ -91,11 +108,11 @@ void Renderer::initBGQuad() {
 	glBindBuffer(GL_ARRAY_BUFFER, bgVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices.data(), GL_STATIC_DRAW);
 
-	// Posición (x, y)
+	// Posición
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)nullptr);
 	glEnableVertexAttribArray(0);
 
-	// TexCoords (u, v)
+	// TexCoords
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
 	glEnableVertexAttribArray(1);
 
@@ -108,11 +125,15 @@ void Renderer::initGL() {
 		initGLEW();
 		configureOpenGL();
 
+		bgShaderProgram = Shader(SHADER_ABSOLUTE_PATH + SHADER_PATH[0], SHADER_ABSOLUTE_PATH + SHADER_PATH[1]);
+		bgShaderProgram.use();
+		bgShaderProgram.set_int("backgroundTexture", 0);
+
 		// DESPUÉS de creado el contexto GLEW/GLFW
 		initBG();
 		initBGQuad();
 	} catch (const GLException& e) {
-		std::cerr << "Error en Renderer: " << e.what() << std::endl;
+		std::cerr << "Error en initGL: " << e.what() << std::endl;
 		glfwTerminate();
 	}
 }
@@ -120,32 +141,44 @@ void Renderer::initGL() {
 void Renderer::updateBG() {
 	std::lock_guard lock(shared.mut);
 
-	if (shared.frame.empty() || shared.frame.type() != CV_8UC3)
+	if (!shared.frame_ready) return;
+
+	shared.read_idx = 1 - shared.read_idx;
+	shared.frame_ready = false;
+
+	cv::Mat& current_frame = shared.frames[shared.read_idx];
+	if (current_frame.empty() || current_frame.type() != CV_8UC3)
 		return;
 
 	glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
 
 	glTexSubImage2D(
 		GL_TEXTURE_2D, 0, 0, 0,
-		shared.frame.cols, shared.frame.rows,
-		GL_BGR, GL_UNSIGNED_BYTE, shared.frame.ptr()
+		current_frame.cols, current_frame.rows,
+		GL_BGR, GL_UNSIGNED_BYTE, current_frame.ptr()
 	);
 
 	glGenerateMipmap(GL_TEXTURE_2D);
 }
 
-void Renderer::renderBG() {
+void Renderer::renderBG() const {
 	glDisable(GL_DEPTH_TEST);
 
-	glUseProgram(bgShaderProgram);
-
-	{
-		std::lock_guard lock(shared.mut);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
-	}
+	bgShaderProgram.use();
 
 	glBindVertexArray(bgVAO);
+	glActiveTexture(GL_TEXTURE0);
+	
+	{
+		std::lock_guard lock(shared.mut);
+
+		if (!shared.frame_ready) return;
+		glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
+		shared.processed = true;
+
+		shared.cv.notify_all();
+	}
+
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	glEnable(GL_DEPTH_TEST);
@@ -229,32 +262,21 @@ void processInput(GLFWwindow* window) {
 
 	// esto depende de que la lógica de reinicio se haga en el Renderer
 	if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
-		/* TODO: reiniciar el objeto */
+		/* lógica de reiniciar el objeto */
 	}
 }
 
 void Renderer::run() {
-	while (!glfwWindowShouldClose(window)) {
-		try {
-			processInput(window);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    while (!glfwWindowShouldClose(window)) {
+        processInput(window);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-			{
-				std::lock_guard lock(shared.mut);
-				// TODO: update texture función en shared y todo eso
-			}
-
-			drawAxes();
-
-			renderBG();
-			renderObj();
-
-			glfwSwapBuffers(window);
-			glfwPollEvents();
-			checkGLError();
-		} catch (const GLException& e) {
-			std::cerr << "Error en Renderer: " << e.what() << std::endl;
-			glfwTerminate();
-		}
-	}
+        updateBG();
+        renderBG();
+        
+        drawAxes();
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+        checkGLError();
+    }
 }

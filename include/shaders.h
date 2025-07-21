@@ -12,9 +12,11 @@ class Shader {
 	GLuint shader_compiler(GLenum, const std::string&) const;
 	std::string load_source(const std::string&) const;
 public:
+	Shader() = default;
 	Shader(const std::string&, const std::string&);
 	~Shader();
 
 	void use() const;
 	GLuint id() const { return program; }
+	void set_int(const std::string&, int) const;
 };

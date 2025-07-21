@@ -12,7 +12,7 @@ Shader::Shader(const std::string& vert_path, const std::string& frag_path) {
 	GLint success;
 	glGetProgramiv(program, GL_LINK_STATUS, &success);
 	if (!success) {
-		std::string info_log;
+		std::string info_log(512, '\0');
 		glGetProgramInfoLog(program, 512, nullptr, info_log.data());
 		std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << info_log << std::endl;
 	}
@@ -41,8 +41,8 @@ GLuint Shader::shader_compiler(GLenum type, const std::string& path) const {
 	GLint success;
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
 	if (!success) {
-		std::string info_log;
-		glGetProgramInfoLog(program, 512, nullptr, info_log.data());
+		std::string info_log(512, '\0');
+		glGetShaderInfoLog(program, 512, nullptr, info_log.data());
 		std::cerr << "ERROR::SHADER::COMPILATION_FAILED\n" << info_log << std::endl;
 	}
 
@@ -59,4 +59,8 @@ std::string Shader::load_source(const std::string& path) const {
 	std::stringstream buffer;
 	buffer << file.rdbuf();
 	return buffer.str();
+}
+
+void Shader::set_int(const std::string& name, int texture_idx) const {
+	glUniform1i(glGetUniformLocation(program, name.c_str()), texture_idx);
 }

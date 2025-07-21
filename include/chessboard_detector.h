@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <format>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <opencv2/calib3d/calib3d.hpp>
@@ -13,7 +14,7 @@
 constexpr short CHECKERBOARD_ROWS = 4;
 constexpr short CHECKERBOARD_COLS = 7;
 
-constexpr short MIN_FRAMES = 15;
+constexpr short MIN_FRAMES = 5;
 
 class ChessboardDetector {
 	Camera& camera;
@@ -28,7 +29,7 @@ class ChessboardDetector {
 	cv::Mat dist_coeffs;
 
 	cv::Size pattern_size = cv::Size(CHECKERBOARD_COLS, CHECKERBOARD_ROWS);
-	std::vector<cv::Point3f> generate_3d_object_points();
+	std::vector<cv::Point3f> generate_3d_object_points() const;
 	void camera_calibration();
 public:
 	explicit ChessboardDetector(Camera&, SharedData&);

@@ -4,47 +4,61 @@ ChessboardDetector::ChessboardDetector(Camera& c, SharedData& sd) : camera(c), s
     camera_calibration();
 }
 
-std::vector<cv::Point3f> ChessboardDetector::generate_3d_object_points() {
+std::vector<cv::Point3f> ChessboardDetector::generate_3d_object_points() const {
     std::vector<cv::Point3f> obj_points_it;
 
     for (int i = 0; i < pattern_size.height; ++i)
         for (int j = 0; j < pattern_size.width; ++j)
-            obj_points_it.emplace_back(j, i, 0);
+            obj_points_it.emplace_back(j, i, 0.0f);
 
     return obj_points_it;
 }
 
-// FIXME: s para guardar frames válidos
 void ChessboardDetector::camera_calibration() {
     std::vector<std::vector<cv::Point3f>> object_points;
     std::vector<std::vector<cv::Point2f>> image_points;
 
     std::vector<cv::Point3f> obj_points_it = generate_3d_object_points();
-    
 
     cv::Mat frame;
-
+    cv::Mat gray;
+    cv::Mat small;
     while (image_points.size() < MIN_FRAMES) {
         camera.get_frame(frame);
-        cv::Mat gray;
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+        cv::resize(gray, small, cv::Size(), 0.5, 0.5);
 
         std::vector<cv::Point2f> corner_pts;
-        if (bool detected = cv::findChessboardCorners(gray, pattern_size, corner_pts, flags);
-            detected) {
-            cv::cornerSubPix(
-                gray, corner_pts, cv::Size(11, 11), cv::Size(-1, -1),
-                crit
-            );
+        std::vector<cv::Point2f> corners_small;
 
-            cv::drawChessboardCorners(frame, pattern_size, corner_pts, detected);
-            cv::putText(frame, "Calibración en proceso...\nMantenga la cámara en el tablero", { 25, 25 }, cv::FONT_HERSHEY_SIMPLEX, 1.0, { 0, 255, 0 }, 2);
-            object_points.push_back(obj_points_it);
-            image_points.push_back(corner_pts);
+        cv::putText(frame, "Calibración en proceso...", { 25, 25 },
+            cv::FONT_HERSHEY_SIMPLEX, 0.65, { 0, 255, 0 }, 2);
+        cv::putText(frame, std::format("Capturas: {}", image_points.size()), { 25, frame.rows - 25 },
+            cv::FONT_HERSHEY_SIMPLEX, 0.65, { 0, 255, 0 }, 2);
+
+        int key = cv::waitKey(30);
+        if (bool found = cv::findChessboardCorners(small, pattern_size, corners_small, flags); found) {
+            if (bool detected = cv::findChessboardCorners(gray, pattern_size, corner_pts, flags);
+                detected) {
+
+                cv::drawChessboardCorners(frame, pattern_size, corner_pts, detected);
+                
+                cv::putText(frame, "Presione 'S' para tomar una muestra", { 25, 50 },
+                    cv::FONT_HERSHEY_SIMPLEX, 0.65, { 0, 255, 0 }, 2);
+                
+                if (key == 's' || key == 'S') {
+                    cv::cornerSubPix(
+                        gray, corner_pts, cv::Size(11, 11), cv::Size(-1, -1),
+                        crit
+                    );
+                    object_points.push_back(obj_points_it);
+                    image_points.push_back(corner_pts);
+                }
+            }
         }
 
         cv::imshow("Calibrando...", frame);
-        if (cv::waitKey(30) == 27) abort();
+        if (key == 27) abort();
     }
 
     cv::destroyAllWindows();
@@ -130,28 +144,38 @@ glm::mat4 get_glm_projection_mat(const cv::Mat& camera_matrix,
 */
 
 void ChessboardDetector::update() {
-    cv::Mat frame;
-    {
-        std::lock_guard lock(shared.mut);
-        frame = shared.frame;
-    }
+    std::unique_lock lock(shared.mut);
 
-    if (!frame.empty()) {
+    shared.cv.wait(lock, [this] {
+        return shared.frame_ready || !shared.running;
+        });
+
+    if (!shared.running) return;
+
+    cv::Mat const& current_frame = shared.frames[static_cast<std::array<cv::Mat, 2Ui64>::size_type>(1) - shared.read_idx];
+
+    if (!current_frame.empty()) {
         cv::Mat gray;
-        cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(current_frame, gray, cv::COLOR_BGR2GRAY);
+
         std::vector<cv::Point2f> corner_pts;
-        if (bool detected = cv::findChessboardCorners(gray, pattern_size, corner_pts, flags);
-            detected) {
-            cv::Mat rvec;
-            cv::Mat tvec;
+        bool detected = cv::findChessboardCorners(
+            gray, pattern_size, corner_pts, flags);
+
+        if (detected) {
+            cv::cornerSubPix(
+                gray, corner_pts, cv::Size(11, 11),
+                cv::Size(-1, -1),
+                cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::COUNT, 30, 0.1));
 
             auto object_points = generate_3d_object_points();
-            cv::solvePnP(object_points, corner_pts, camera_matrix, dist_coeffs, rvec, tvec);
+            cv::Mat rvec;
+            cv::Mat tvec;
+            cv::solvePnP(object_points, corner_pts,
+                camera_matrix, dist_coeffs,
+                rvec, tvec);
 
-            glm::mat4 model = get_glm_model_mat(rvec, tvec);
-
-            std::lock_guard lock(shared.mut);
-            shared.chessboard_pos = model;
+            shared.chessboard_pos = get_glm_model_mat(rvec, tvec);
         }
     }
 }
