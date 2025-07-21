@@ -1,11 +1,13 @@
 #pragma once
 
+#include <array>
 #include <format>
 #include <iostream>
 #include <GLFW/glfw3.h>
 #include <glm/ext/scalar_constants.hpp>
 #include <string>
 
+#include "shaders.h"
 #include "shared_data.h"
 
 const unsigned int WINDOW_WIDTH = 800;
@@ -23,8 +25,20 @@ class Renderer {
 	SharedData& shared;
 	GLFWwindow* window;
 
+	void initBG();
+	void initBGQuad();
 	void initGL();
+
+	GLuint bgShaderProgram;
+	GLuint bgVAO;
+	GLuint bgVBO;
+	void updateBG();
 	void renderBG();
+
+	GLuint objShaderProgram;
+	GLuint objVAO;
+	GLuint objVBO;
+	void updateObj();
 	void renderObj();
 
 public:
