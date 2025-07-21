@@ -12,18 +12,20 @@ bool Camera::get_frame(cv::OutputArray frame) {
 // OJO: es seguro porque el cvThread empieza DESPUÉS de que se declara un Renderer en el main (que inicializa GLEW/GLFW).
 // NO llamar antes!!!
 void Camera::set_frame() {
-    cv::Mat temp_frame;
-    if (!get_frame(temp_frame)) return;
+    cv::Mat frame;
+    if (!get_frame(frame)) return;
+    
+    if (shared.opencv_frames.size() > 10) {
+        std::cout << "[camera-opencv] Queue full, disposing\n";
+        shared.opencv_frames.pop();
+    }
+    std::cout << "[camera] served\n";
+    shared.opencv_frames.push(frame);
 
-    std::unique_lock lock(shared.mut);
-    shared.cv.wait(lock, [this] { return shared.processed || !shared.running; });
-
-    if (!shared.running) return;
-
-    int write_idx = 1 - shared.read_idx;
-    temp_frame.copyTo(shared.frames[write_idx]);
-    shared.frame_ready = true;
-    shared.processed = false;
-    lock.unlock();
-    shared.cv.notify_all();
+    if (shared.opengl_frames.size() > 10) {
+        std::cout << "[camera-opencv] Queue full, disposing\n";
+        shared.opengl_frames.pop();
+    }
+    std::cout << "[camera] served\n";
+    shared.opengl_frames.push(frame);
 }

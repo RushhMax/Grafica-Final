@@ -9,21 +9,20 @@
 #include <GL/glew.h>
 #include <glm/glm.hpp>
 #include <opencv2/opencv.hpp>
+#include <queue>
 
 struct SharedData {
-    std::mutex mut;
-    std::condition_variable cv;
-    bool frame_ready = false;
-    bool processed = true;
-    std::atomic<bool> running = true;
+    bool running = true;
 
-    std::array<cv::Mat, 2> frames;
-    std::atomic<int> read_idx = 0;
+    // frames destinados a ser consumidos por cvThread
+    std::queue<cv::Mat> opencv_frames;
+    // frames destinados a ser consumidos por renderLoop
+    std::queue<cv::Mat> opengl_frames;
+
     GLuint cam_texture = 0;
-    glm::mat4 chessboard_pos;
+    glm::mat4 chessboard_pose;
 
     ~SharedData() {
         running = false;
-        cv.notify_all();
     }
 };

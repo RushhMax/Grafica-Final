@@ -53,8 +53,6 @@ void configureOpenGL() {
 }
 
 void Renderer::initBG() {
-	std::lock_guard lock(shared.mut);
-	
 	glGenTextures(1, &shared.cam_texture);
 	glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
 
@@ -63,7 +61,7 @@ void Renderer::initBG() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
 
-	if (shared.frames[shared.read_idx].empty()) {
+	if (shared.opengl_frames.empty()) {
 		const int default_width = 640;
 		const int default_height = 480;
 		std::vector<unsigned char> empty_data(default_width * default_height * 3, 0);
@@ -75,16 +73,13 @@ void Renderer::initBG() {
 		);
 	}
 	else {
-		cv::Mat& current_frame = shared.frames[shared.read_idx];
+		cv::Mat& current_frame = shared.opengl_frames.front();
 		glTexImage2D(
 			GL_TEXTURE_2D, 0, GL_RGB,
 			current_frame.cols, current_frame.rows, 0,
 			GL_BGR, GL_UNSIGNED_BYTE, current_frame.ptr()
 		);
 	}
-
-	shared.processed = true;
-	shared.cv.notify_all();
 
 	glGenerateMipmap(GL_TEXTURE_2D);
 }
@@ -139,14 +134,15 @@ void Renderer::initGL() {
 }
 
 void Renderer::updateBG() {
-	std::lock_guard lock(shared.mut);
+	std::cout << "[renderer] " << shared.opengl_frames.size() << " left to eat\n";
+	cv::Mat current_frame;
 
-	if (!shared.frame_ready) return;
+	if (!shared.opengl_frames.empty()) {
+		current_frame = shared.opengl_frames.front();
+		std::cout << "[renderer] yum\n";
+		shared.opengl_frames.pop();
+	}
 
-	shared.read_idx = 1 - shared.read_idx;
-	shared.frame_ready = false;
-
-	cv::Mat& current_frame = shared.frames[shared.read_idx];
 	if (current_frame.empty() || current_frame.type() != CV_8UC3)
 		return;
 
@@ -169,15 +165,7 @@ void Renderer::renderBG() const {
 	glBindVertexArray(bgVAO);
 	glActiveTexture(GL_TEXTURE0);
 	
-	{
-		std::lock_guard lock(shared.mut);
-
-		if (!shared.frame_ready) return;
-		glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
-		shared.processed = true;
-
-		shared.cv.notify_all();
-	}
+	glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 

@@ -144,15 +144,14 @@ glm::mat4 get_glm_projection_mat(const cv::Mat& camera_matrix,
 */
 
 void ChessboardDetector::update() {
-    std::unique_lock lock(shared.mut);
+    std::cout << "[chessboard_detector] " << shared.opencv_frames.size() << " left to eat\n";
+    cv::Mat current_frame;
 
-    shared.cv.wait(lock, [this] {
-        return shared.frame_ready || !shared.running;
-        });
-
-    if (!shared.running) return;
-
-    cv::Mat const& current_frame = shared.frames[static_cast<std::array<cv::Mat, 2Ui64>::size_type>(1) - shared.read_idx];
+    if (!shared.opencv_frames.empty()) {
+        current_frame = shared.opencv_frames.front();
+        std::cout << "[renderer] yum\n";
+        shared.opencv_frames.pop();
+    }
 
     if (!current_frame.empty()) {
         cv::Mat gray;
@@ -175,7 +174,7 @@ void ChessboardDetector::update() {
                 camera_matrix, dist_coeffs,
                 rvec, tvec);
 
-            shared.chessboard_pos = get_glm_model_mat(rvec, tvec);
+            shared.chessboard_pose = get_glm_model_mat(rvec, tvec);
         }
     }
 }
