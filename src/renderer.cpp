@@ -1,4 +1,7 @@
 #include "renderer.h"
+#include "model_loader.hpp"
+#include "texture_loader.hpp"
+#include "shader_loader.hpp"
 
 void checkGLError() {
 	if (GLenum err = glGetError(); err != GL_NO_ERROR)
@@ -162,20 +165,102 @@ void Renderer::renderBG() {
 }
 
 void Renderer::updateObj() {
-	/*
-	* 
-	* función para update el obj
-	* 
-	*/
+    if (!loadOBJ("modelos/star-war/anlustarwars.obj", vertices)) {
+        throw GLException("No se pudo cargar el modelo OBJ.");
+    }
+
+    objTexture = loadTexture("star-war/anlustarwars.jpg");
+
+    // Calcular centro del modelo
+    glm::vec3 min(FLT_MAX), max(-FLT_MAX);
+    for (size_t i = 0; i < vertices.size(); i += 5) {
+        glm::vec3 v(vertices[i], vertices[i + 1], vertices[i + 2]);
+        min = glm::min(min, v);
+        max = glm::max(max, v);
+    }
+    centroModelo = (min + max) * 0.5f;
+
+    glGenVertexArrays(1, &objVAO);
+    glGenBuffers(1, &objVBO);
+    glBindVertexArray(objVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, objVBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // Cargar y compilar shaders
+    objShaderProgram = Shader(
+        SHADER_ABSOLUTE_PATH + SHADER_PATH[2],
+        SHADER_ABSOLUTE_PATH + SHADER_PATH[3]
+    );
 }
 
+
 void Renderer::renderObj() {
-	/*
-	*
-	* función para render el obj
-	*
-	*/
+    objShaderProgram.use();
+
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+
+    glm::mat4 model = glm::mat4(1.0f);
+
+    if (volverAlCentro) {
+        estadoAnimacion = SUBIENDO;
+        altura = 0.0f;
+        avanceZ = 0.0f;
+        model = glm::translate(model, -centroModelo);
+    } else if (activarAnimacion) {
+        if (estadoAnimacion == SUBIENDO) {
+            altura += velocidadSubida * deltaTime;
+            if (altura >= 50.0f) {
+                altura = 50.0f;
+                estadoAnimacion = AVANZANDO;
+            }
+            model = glm::translate(model, glm::vec3(0.0f, altura, 0.0f) - centroModelo);
+        }
+        else if (estadoAnimacion == AVANZANDO) {
+            avanceZ -= velocidadAvance * deltaTime;
+            if (avanceZ <= -100.0f) {
+                avanceZ = -100.0f;
+                estadoAnimacion = GIRANDO;
+            }
+            model = glm::translate(model, glm::vec3(0.0f, altura, avanceZ) - centroModelo);
+        }
+        else if (estadoAnimacion == GIRANDO) {
+            float tiempo = glfwGetTime();
+            float radio = 100.0f;
+            float velocidad = 1.0f;
+
+            float x = radio * cos(velocidad * tiempo);
+            float z = avanceZ + radio * sin(velocidad * tiempo);
+            float y = altura + 2.0f * sin(velocidad * tiempo * 2.0f);
+
+            model = glm::translate(model, glm::vec3(x, y, z) - centroModelo);
+            model = glm::rotate(model, tiempo, glm::vec3(0.0f, 1.0f, 0.0f));
+        }
+    } else {
+        model = glm::translate(model, -centroModelo);
+    }
+
+    // model = shared.chessboard_pose * model;
+
+    glm::mat4 view = glm::mat4(1.0f); 
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), WINDOW_WIDTH / float(WINDOW_HEIGHT), 0.1f, 1000.0f);
+    glm::mat4 mvp = projection * view * model;
+
+    GLuint mvpLoc = glGetUniformLocation(objShaderProgram.id(), "mvp");
+    glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+
+    glBindTexture(GL_TEXTURE_2D, objTexture);
+    glBindVertexArray(objVAO);
+    glDrawArrays(GL_TRIANGLES, 0, vertices.size() / 5);
 }
+
 
 /*
 * 
@@ -245,31 +330,29 @@ void processInput(GLFWwindow* window) {
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
 
-	// esto depende de que la lógica de reinicio se haga en el Renderer
+	// esto depende de que la lï¿½gica de reinicio se haga en el Renderer
 	if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
-		/* lógica de reiniciar el objeto */
+		/* lï¿½gica de reiniciar el objeto */
 	}
 }
 
 void Renderer::run() {
 	std::cout << "[renderLoop] Starting loop...\n";
-    while (!glfwWindowShouldClose(window)) {
-		std::cout << "[renderLoop] Beginning of loop\n";
+    updateObj();
+	while (!glfwWindowShouldClose(window)) {
 		processInput(window);
-		std::cout << "[renderLoop] Clearing buffers\n";
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         renderBG();
 		drawAxes();
 		drawSphere();
-		std::cout << "[renderLoop] Background rendered\n";
 
-        // drawAxes() (opengl antiguo) no es código no es código no es código
-		std::cout << "[renderLoop] Swapping buffers\n";
+        renderObj();
+		
+		// drawAxes() (opengl antiguo) no es cï¿½digo no es cï¿½digo no es cï¿½digo
 		glfwSwapBuffers(window);
-		std::cout << "[renderLoop] Polling events\n";
 		glfwPollEvents();
         checkGLError();
-		std::cout << "[renderLoop] End of loop\n";
+        std::this_thread::sleep_for(FRAME_RATE);
 	}
 }

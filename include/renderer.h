@@ -9,6 +9,7 @@
 #include <format>
 #include <iostream>
 #include <GLFW/glfw3.h>
+#include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/scalar_constants.hpp>
 #include <string>
 
@@ -19,6 +20,8 @@ const unsigned int WINDOW_WIDTH = 640;
 const unsigned int WINDOW_HEIGHT = 480;
 
 constexpr char const* TITLE = "Star Wars AR";
+
+constexpr std::chrono::milliseconds FRAME_RATE = std::chrono::milliseconds(33); // ~60fps
 
 /*
 * pares: vert
@@ -39,8 +42,6 @@ class Renderer {
 	SharedData& shared;
 	GLFWwindow* window;
 
-	void initBG();
-	void initBGQuad();
 	void initGL();
 
 	int last_width;

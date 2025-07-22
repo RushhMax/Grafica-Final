@@ -1,9 +1,10 @@
 // SHADER DE OBJECT FRAGMENT PARA la iluminación creo que es (sí es)
 #version 330 core
 out vec4 FragColor;
+in vec2 TexCoord;
 
-uniform vec3 objectColor;
+uniform sampler2D ourTexture;
 
 void main() {
-    FragColor = vec4(objectColor, 1.0);
+    FragColor = texture(ourTexture, TexCoord);
 }

@@ -4,8 +4,6 @@
 #include "shared_data.h"
 #include "hand_detector.h"
 
-constexpr std::chrono::milliseconds FRAME_RATE = std::chrono::milliseconds(33); // ~60fps
-
 int main() {
     try {
         SharedData shared;
