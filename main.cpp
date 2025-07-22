@@ -2,7 +2,7 @@
 #include "chessboard_detector.h"
 #include "renderer.h"
 #include "shared_data.h"
-//#include "hand_detector.h"
+#include "hand_detector.h"
 
 constexpr std::chrono::milliseconds FRAME_RATE = std::chrono::milliseconds(33); // ~60fps
 
@@ -12,8 +12,9 @@ int main() {
         std::cout << shared.running << std::endl;
 
         Camera camara(0, shared);
-        ChessboardDetector chessboard_detector(camara, shared); // se hace la calibración
+        ChessboardDetector chessboard_detector(camara, shared); // se hace la calibracion
         Renderer renderer(shared); // se inicializa toda la parte de gl + shaders
+        HandDetector hand_detector(shared);//agrega la deteccion de la mano
 
         std::jthread inputThread([&camara, &shared]() {
             while (shared.running) {
@@ -22,11 +23,12 @@ int main() {
             }
             });
 
-        std::jthread cvThread([&chessboard_detector, &shared]() {
+        std::jthread cvThread([&chessboard_detector,&hand_detector, &shared]() {
             while (shared.running) {
                 chessboard_detector.update();
-                /** update de la detección de manos va aquí **/
-
+                hand_detector.update();
+                shared.opencv_frames.pop();
+                
                 std::this_thread::sleep_for(FRAME_RATE);
             }
             });

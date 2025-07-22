@@ -1,6 +1,6 @@
 #pragma once
 
-// comprobación glew
+// comprobacion glew
 #ifndef __gl_h_
 #include <GL/glew.h>
 #endif
@@ -24,7 +24,7 @@ constexpr char const* TITLE = "Star Wars AR";
 * pares: vert
 * impares: frag
 * primeros dos para el background
-* últimos dos para el 3d object
+* ï¿½ltimos dos para el 3d object
 */
 const std::string SHADER_ABSOLUTE_PATH = "E:\\compgrafica\\resources\\";
 const std::array<std::string, 4> SHADER_PATH = { "background.vert", "background.frag", "object.vert", "object.frag" };
@@ -52,9 +52,26 @@ class Renderer {
 	bool updateBG();
 	void renderBG();
 
-	GLuint objShaderProgram;
+	GLuint objTexture;
 	GLuint objVAO;
 	GLuint objVBO;
+	std::vector<float> vertices;
+
+	glm::vec3 centroModelo;
+
+	enum EstadoAnimacion { SUBIENDO, AVANZANDO, GIRANDO };
+	EstadoAnimacion estadoAnimacion = SUBIENDO;
+
+	float avanceZ = 0.0f;
+	float velocidadAvance = 30.0f;
+	float altura = 0.0f;
+	float velocidadSubida = 10.0f;
+	bool activarAnimacion = false;
+	bool volverAlCentro = false;
+	float deltaTime = 0.0f;
+	float lastFrame = 0.0f;
+
+	Shader objShaderProgram;
 	void updateObj();
 	void renderObj();
 

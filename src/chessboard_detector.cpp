@@ -31,7 +31,7 @@ void ChessboardDetector::camera_calibration() {
         std::vector<cv::Point2f> corner_pts;
         std::vector<cv::Point2f> corners_small;
 
-        cv::putText(frame, "Calibración en proceso...", { 25, 25 },
+        cv::putText(frame, "Calibraciï¿½n en proceso...", { 25, 25 },
             cv::FONT_HERSHEY_SIMPLEX, 0.65, { 0, 255, 0 }, 2);
         cv::putText(frame, std::format("Capturas: {}", image_points.size()), { 25, frame.rows - 25 },
             cv::FONT_HERSHEY_SIMPLEX, 0.65, { 0, 255, 0 }, 2);
@@ -75,12 +75,12 @@ void ChessboardDetector::camera_calibration() {
         __rvecs, __tvecs
     );
 
-    std::cout << "Error RMS en calibración: " << error << " pixeles" << std::endl; // your order is confirmed
+    std::cout << "Error RMS en calibraciï¿½n: " << error << " pixeles" << std::endl; // your order is confirmed
 }
 
 /*
 * 
-*   FUNCIONES TRANSFORMACIÓN OPENCV -> GLM
+*   FUNCIONES TRANSFORMACIï¿½N OPENCV -> GLM
 * 
 */
 
@@ -150,7 +150,6 @@ void ChessboardDetector::update() {
     if (!shared.opencv_frames.empty()) {
         current_frame = shared.opencv_frames.front();
         std::cout << "[chessboard_detector] yum\n";
-        shared.opencv_frames.pop();
     }
 
     if (!current_frame.empty()) {
