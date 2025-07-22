@@ -60,7 +60,7 @@ void HandDetector::update() {
             contadorApertura = 0;
             if (contadorCierre > 5 && estadoMano == 1) {
                 estadoMano = 2;
-                cout << "[HandDetector] Mano cerrada detectada. ¡Salto!" << endl;
+                cout << "mano cerrada detectada, salto" << endl;
 
                 //salto
                 // saltar(); 
