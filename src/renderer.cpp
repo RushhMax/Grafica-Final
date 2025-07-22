@@ -1,17 +1,16 @@
 #include "renderer.h"
 
 void checkGLError() {
-	GLenum err;
-	std::string errorMessages;
-	while ((err = glGetError()) != GL_NO_ERROR)
-		errorMessages += std::to_string(err);
-	if (!errorMessages.empty())
-		throw GLException(errorMessages);
+	if (GLenum err = glGetError(); err != GL_NO_ERROR)
+		throw GLException(std::format("{} ", std::to_string(err)));
 }
 
 Renderer::Renderer(SharedData& s) : shared(s) {
+	std::cout << "[renderer] RENDERER GENERATED\n INITIALIZING...\n";
 	initGL();
+	std::cout << "[renderer] RENDERER INITIALIZED\n";
 }
+
 /*
 * 
 *	FUNCIONES INIT DE GLEW/GLFW FREEGLUT ZZZZZZZZZZZZZZZZZZZZZZZ
@@ -27,7 +26,7 @@ GLFWwindow* initWindow() {
 
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
 
 	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, TITLE, nullptr, nullptr);
 	if (!window) {
@@ -44,6 +43,10 @@ GLFWwindow* initWindow() {
 void initGLEW() {
 	glewExperimental = GL_TRUE;
 	if (glewInit() != GLEW_OK) throw GLException("No se pudo iniciar GLEW");
+	std::cout << "GLEW version: " << glewGetString(GLEW_VERSION) << "\n";
+	GLint max_units = 0;
+	glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &max_units);
+	std::cout << "Max texture units: " << max_units << "\n";
 }
 
 void configureOpenGL() {
@@ -52,132 +55,126 @@ void configureOpenGL() {
 	checkGLError();
 }
 
-void Renderer::initBG() {
-	glGenTextures(1, &shared.cam_texture);
-	glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
-
-	if (shared.opengl_frames.empty()) {
-		const int default_width = 640;
-		const int default_height = 480;
-		std::vector<unsigned char> empty_data(default_width * default_height * 3, 0);
-
-		glTexImage2D(
-			GL_TEXTURE_2D, 0, GL_RGB,
-			default_width, default_height, 0,
-			GL_BGR, GL_UNSIGNED_BYTE, empty_data.data()
-		);
-	}
-	else {
-		cv::Mat& current_frame = shared.opengl_frames.front();
-		glTexImage2D(
-			GL_TEXTURE_2D, 0, GL_RGB,
-			current_frame.cols, current_frame.rows, 0,
-			GL_BGR, GL_UNSIGNED_BYTE, current_frame.ptr()
-		);
-	}
-
-	glGenerateMipmap(GL_TEXTURE_2D);
-}
-
-void Renderer::initBGQuad() {
-	std::array<float, 24> quadVertices = {
-		// positions    // texCoords
-		-1.0f,  1.0f,   0.0f, 1.0f,  // top-left
-		-1.0f, -1.0f,   0.0f, 0.0f,  // bottom-left
-		 1.0f, -1.0f,   1.0f, 0.0f,  // bottom-right
-
-		-1.0f,  1.0f,   0.0f, 1.0f,  // top-left
-		 1.0f, -1.0f,   1.0f, 0.0f,  // bottom-right
-		 1.0f,  1.0f,   1.0f, 1.0f   // top-right
-	};
-
-	glGenVertexArrays(1, &bgVAO);
-	glGenBuffers(1, &bgVBO);
-
-	glBindVertexArray(bgVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, bgVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices.data(), GL_STATIC_DRAW);
-
-	// Posición
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)nullptr);
-	glEnableVertexAttribArray(0);
-
-	// TexCoords
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-	glBindVertexArray(0);
-}
-
 void Renderer::initGL() {
-	try {
-		window = initWindow();
-		initGLEW();
-		configureOpenGL();
+	window = initWindow();
+	std::cout << "[renderer] GLFW has been initialized successfuly\n";
 
-		bgShaderProgram = Shader(SHADER_ABSOLUTE_PATH + SHADER_PATH[0], SHADER_ABSOLUTE_PATH + SHADER_PATH[1]);
-		bgShaderProgram.use();
-		bgShaderProgram.set_int("backgroundTexture", 0);
+	initGLEW();
+	std::cout << "[renderer] GLEW has been initialized successfuly\n";
 
-		// DESPUÉS de creado el contexto GLEW/GLFW
-		initBG();
-		initBGQuad();
-	} catch (const GLException& e) {
-		std::cerr << "Error en initGL: " << e.what() << std::endl;
-		glfwTerminate();
-	}
+	configureOpenGL();
+
+	glfwSwapInterval(1);
+	glfwSetWindowSizeCallback(window, framebuffer_size_callback);
+
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(0.0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0, 0.0, 1.0);
+	glMatrixMode(GL_MODELVIEW);
+
+	int frameWidth, frameHeight;
+	glfwGetFramebufferSize(window, &frameWidth, &frameHeight);
+	glViewport(0, 0, frameWidth, frameHeight);
+
+	updateBG();
+	std::cout << "[renderer] Background has been initialized successfuly\n";
 }
 
-void Renderer::updateBG() {
-	std::cout << "[renderer] " << shared.opengl_frames.size() << " left to eat\n";
+
+bool Renderer::updateBG() {
+	std::cout << "[updateBg] " << shared.opengl_frames.size() << " left to eat\n";
 	cv::Mat current_frame;
 
 	if (!shared.opengl_frames.empty()) {
+		std::cout << "[updateBg] yum\n";
 		current_frame = shared.opengl_frames.front();
-		std::cout << "[renderer] yum\n";
 		shared.opengl_frames.pop();
+
+		glGenTextures(1, &shared.cam_texture);
+		glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+		GLenum inputFormat;
+		switch (current_frame.channels())
+		{
+		case 1:
+			inputFormat = GL_LUMINANCE;
+			break;
+		case 3:
+			inputFormat = GL_BGR;
+			break;
+		case 4:
+			inputFormat = GL_BGRA;
+			break;
+		default:
+			throw GLException("Formato de imagen no soportado");
+		}
+
+		glTexImage2D(GL_TEXTURE_2D,
+			0,
+			GL_RGB,
+			current_frame.cols,
+			current_frame.rows,
+			0,
+			inputFormat,
+			GL_UNSIGNED_BYTE,
+			current_frame.ptr()
+		);
+
+		glGenerateMipmap(GL_TEXTURE_2D);
+
+		return true;
 	}
-
-	if (current_frame.empty() || current_frame.type() != CV_8UC3)
-		return;
-
-	glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
-
-	glTexSubImage2D(
-		GL_TEXTURE_2D, 0, 0, 0,
-		current_frame.cols, current_frame.rows,
-		GL_BGR, GL_UNSIGNED_BYTE, current_frame.ptr()
-	);
-
-	glGenerateMipmap(GL_TEXTURE_2D);
+	else {
+		std::cout << "[updateBg] Nothing to eat\n";
+		return false;
+	}
 }
 
-void Renderer::renderBG() const {
-	glDisable(GL_DEPTH_TEST);
+void Renderer::renderBG() {
+	if (!updateBG()) return;
 
-	bgShaderProgram.use();
+	glClearColor(0.1f, 0.1f, 0.1f, 0.f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	glBindVertexArray(bgVAO);
-	glActiveTexture(GL_TEXTURE0);
-	
-	glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
+	glMatrixMode(GL_MODELVIEW);
 
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glEnable(GL_TEXTURE_2D);
 
-	glEnable(GL_DEPTH_TEST);
+	glBegin(GL_QUADS);
+	glTexCoord2i(0, 0);
+	glVertex2i(0, 0);
+	glTexCoord2i(0, 1);
+	glVertex2i(0, WINDOW_HEIGHT);
+	glTexCoord2i(1, 1);
+	glVertex2i(WINDOW_WIDTH, WINDOW_HEIGHT);
+	glTexCoord2i(1, 0);
+	glVertex2i(WINDOW_WIDTH, 0);
+
+	glEnd();
+
+	glDeleteTextures(1, &shared.cam_texture);
+	glDisable(GL_TEXTURE_2D);
 }
 
 void Renderer::updateObj() {
-
+	/*
+	* 
+	* función para update el obj
+	* 
+	*/
 }
 
 void Renderer::renderObj() {
-
+	/*
+	*
+	* función para render el obj
+	*
+	*/
 }
 
 /*
@@ -255,16 +252,24 @@ void processInput(GLFWwindow* window) {
 }
 
 void Renderer::run() {
+	std::cout << "[renderLoop] Starting loop...\n";
     while (!glfwWindowShouldClose(window)) {
-        processInput(window);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		std::cout << "[renderLoop] Beginning of loop\n";
+		processInput(window);
+		std::cout << "[renderLoop] Clearing buffers\n";
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        updateBG();
         renderBG();
-        
-        drawAxes();
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+		drawAxes();
+		drawSphere();
+		std::cout << "[renderLoop] Background rendered\n";
+
+        // drawAxes() (opengl antiguo) no es código no es código no es código
+		std::cout << "[renderLoop] Swapping buffers\n";
+		glfwSwapBuffers(window);
+		std::cout << "[renderLoop] Polling events\n";
+		glfwPollEvents();
         checkGLError();
-    }
+		std::cout << "[renderLoop] End of loop\n";
+	}
 }

@@ -149,7 +149,7 @@ void ChessboardDetector::update() {
 
     if (!shared.opencv_frames.empty()) {
         current_frame = shared.opencv_frames.front();
-        std::cout << "[renderer] yum\n";
+        std::cout << "[chessboard_detector] yum\n";
         shared.opencv_frames.pop();
     }
 

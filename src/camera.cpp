@@ -23,7 +23,7 @@ void Camera::set_frame() {
     shared.opencv_frames.push(frame);
 
     if (shared.opengl_frames.size() > 10) {
-        std::cout << "[camera-opencv] Queue full, disposing\n";
+        std::cout << "[camera-opengl] Queue full, disposing\n";
         shared.opengl_frames.pop();
     }
     std::cout << "[camera] served\n";

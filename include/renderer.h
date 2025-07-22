@@ -15,8 +15,8 @@
 #include "shaders.h"
 #include "shared_data.h"
 
-const unsigned int WINDOW_WIDTH = 800;
-const unsigned int WINDOW_HEIGHT = 600;
+const unsigned int WINDOW_WIDTH = 640;
+const unsigned int WINDOW_HEIGHT = 480;
 
 constexpr char const* TITLE = "Star Wars AR";
 
@@ -43,11 +43,14 @@ class Renderer {
 	void initBGQuad();
 	void initGL();
 
+	int last_width;
+	int last_height;
+
 	Shader bgShaderProgram;
 	GLuint bgVAO;
 	GLuint bgVBO;
-	void updateBG();
-	void renderBG() const;
+	bool updateBG();
+	void renderBG();
 
 	GLuint objShaderProgram;
 	GLuint objVAO;

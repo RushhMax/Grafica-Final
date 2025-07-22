@@ -2,6 +2,7 @@
 #include "chessboard_detector.h"
 #include "renderer.h"
 #include "shared_data.h"
+//#include "hand_detector.h"
 
 constexpr std::chrono::milliseconds FRAME_RATE = std::chrono::milliseconds(33); // ~60fps
 
@@ -17,6 +18,7 @@ int main() {
         std::jthread inputThread([&camara, &shared]() {
             while (shared.running) {
                 camara.set_frame();
+                // std::cout << "[SIZE] Good frame of " << shared.opencv_frames.front().cols << "x" << shared.opencv_frames.front().rows << "pixels\n";
             }
             });
 
@@ -29,7 +31,6 @@ int main() {
             }
             });
 
-        std::cout << "[main] ID: " << std::this_thread::get_id() << "\n";
         renderer.run();
     }
     catch (std::exception& e) {

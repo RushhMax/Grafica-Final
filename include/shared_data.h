@@ -6,7 +6,6 @@
 
 #include <array>
 #include <mutex>
-#include <GL/glew.h>
 #include <glm/glm.hpp>
 #include <opencv2/opencv.hpp>
 #include <queue>
