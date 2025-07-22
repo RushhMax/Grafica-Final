@@ -67,5 +67,4 @@ void HandDetector::update() {
     }
     //debug
     imshow("Mascara piel", mask);
-    imshow("Detección de Mano", frame);
 }

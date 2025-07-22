@@ -2,7 +2,7 @@
 #define TEXTURE_LOADER_HPP
 
 #include <string>
-#include "glad.h"
+#include <GL/glew.h>
 
 GLuint loadTexture(const std::string& path);
 

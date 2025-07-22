@@ -1,4 +1,4 @@
-#include "glad.h"
+#include <GL/glew.h>
 #include "shader_loader.hpp"
 #include <fstream>
 #include <sstream>

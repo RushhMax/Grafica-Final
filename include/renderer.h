@@ -9,8 +9,10 @@
 #include <format>
 #include <iostream>
 #include <GLFW/glfw3.h>
+#include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/scalar_constants.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <string>
 
 #include "shaders.h"
@@ -76,6 +78,8 @@ class Renderer {
 	void updateObj();
 	void renderObj();
 
+	void drawSphere(float, int);
+	void drawAxes(float len = 1.5f);
 public:
 	explicit Renderer(SharedData&);
 	void run();

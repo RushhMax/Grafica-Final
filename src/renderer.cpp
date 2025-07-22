@@ -138,40 +138,95 @@ bool Renderer::updateBG() {
 	}
 }
 
+void calculateObjectDimensions(const std::vector<float>& vertices,
+	float& minX, float& maxX,
+	float& minY, float& maxY,
+	float& minZ, float& maxZ,
+	float& centroidX, float& centroidY, float& centroidZ) {
+	if (vertices.empty()) return;
+
+	minX = maxX = vertices[0];
+	minY = maxY = vertices[1];
+	minZ = maxZ = vertices[2];
+
+	float sumX = 0, sumY = 0, sumZ = 0;
+	size_t vertexCount = vertices.size() / 3;
+
+	for (size_t i = 0; i < vertices.size(); i += 3) {
+		float x = vertices[i];
+		float y = vertices[i + 1];
+		float z = vertices[i + 2];
+
+		minX = std::min(minX, x);
+		maxX = std::max(maxX, x);
+		minY = std::min(minY, y);
+		maxY = std::max(maxY, y);
+		minZ = std::min(minZ, z);
+		maxZ = std::max(maxZ, z);
+
+		sumX += x;
+		sumY += y;
+		sumZ += z;
+	}
+
+	centroidX = sumX / vertexCount;
+	centroidY = sumY / vertexCount;
+	centroidZ = sumZ / vertexCount;
+}
+
+float calculateScaleFactor(float minX, float maxX, float minY, float maxY, float minZ, float maxZ) {
+	float sizeX = maxX - minX;
+	float sizeY = maxY - minY;
+	float sizeZ = maxZ - minZ;
+
+	float maxSize = std::max(sizeX, std::max(sizeY, sizeZ));
+	return (maxSize > 0) ? 2.0f / maxSize : 1.0f;
+}
+
 void Renderer::renderBG() {
 	if (!updateBG()) return;
 
-	glClearColor(0.1f, 0.1f, 0.1f, 0.f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glDisable(GL_DEPTH_TEST);
+
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	glOrtho(0, WINDOW_WIDTH, 0, WINDOW_HEIGHT, -1, 1);
 
 	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
 
 	glEnable(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, shared.cam_texture);
+
+	glColor3f(1.0f, 1.0f, 1.0f);
 
 	glBegin(GL_QUADS);
-	glTexCoord2i(0, 0);
-	glVertex2i(0, 0);
-	glTexCoord2i(0, 1);
-	glVertex2i(0, WINDOW_HEIGHT);
-	glTexCoord2i(1, 1);
-	glVertex2i(WINDOW_WIDTH, WINDOW_HEIGHT);
-	glTexCoord2i(1, 0);
-	glVertex2i(WINDOW_WIDTH, 0);
-
+	glTexCoord2i(0, 1); glVertex2i(0, 0);
+	glTexCoord2i(0, 0); glVertex2i(0, WINDOW_HEIGHT);
+	glTexCoord2i(1, 0); glVertex2i(WINDOW_WIDTH, WINDOW_HEIGHT);
+	glTexCoord2i(1, 1); glVertex2i(WINDOW_WIDTH, 0);
 	glEnd();
 
 	glDeleteTextures(1, &shared.cam_texture);
 	glDisable(GL_TEXTURE_2D);
+
+	glPopMatrix(); // MODELVIEW
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+	glMatrixMode(GL_MODELVIEW);
+
+	glEnable(GL_DEPTH_TEST);
 }
 
 void Renderer::updateObj() {
-    if (!loadOBJ("modelos/star-war/anlustarwars.obj", vertices)) {
+    if (!loadOBJ("E:\\compgrafica\\modelos\\star-war\\anlustarwars.obj", vertices)) {
         throw GLException("No se pudo cargar el modelo OBJ.");
     }
 
-    objTexture = loadTexture("star-war/anlustarwars.jpg");
+    objTexture = loadTexture("E:\\compgrafica\\modelos\\star-war\\anlustarwars.jpg");
 
-    // Calcular centro del modelo
     glm::vec3 min(FLT_MAX), max(-FLT_MAX);
     for (size_t i = 0; i < vertices.size(); i += 5) {
         glm::vec3 v(vertices[i], vertices[i + 1], vertices[i + 2]);
@@ -180,85 +235,100 @@ void Renderer::updateObj() {
     }
     centroModelo = (min + max) * 0.5f;
 
-    glGenVertexArrays(1, &objVAO);
-    glGenBuffers(1, &objVBO);
-    glBindVertexArray(objVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, objVBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    // Cargar y compilar shaders
-    objShaderProgram = Shader(
-        SHADER_ABSOLUTE_PATH + SHADER_PATH[2],
-        SHADER_ABSOLUTE_PATH + SHADER_PATH[3]
-    );
+	glEnable(GL_TEXTURE_2D);
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
 }
 
 
 void Renderer::renderObj() {
-    objShaderProgram.use();
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_LIGHTING);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	gluPerspective(45.0, WINDOW_WIDTH / float(WINDOW_HEIGHT), 0.1, 1000.0);
 
-    float currentFrame = glfwGetTime();
-    deltaTime = currentFrame - lastFrame;
-    lastFrame = currentFrame;
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glLoadMatrixf(glm::value_ptr(shared.chessboard_pose));
 
-    glm::mat4 model = glm::mat4(1.0f);
+	float minX, maxX, minY, maxY, minZ, maxZ;
+	calculateObjectDimensions(vertices, minX, maxX, minY, maxY, minZ, maxZ,
+		centroModelo.x, centroModelo.y, centroModelo.z);
 
-    if (volverAlCentro) {
-        estadoAnimacion = SUBIENDO;
-        altura = 0.0f;
-        avanceZ = 0.0f;
-        model = glm::translate(model, -centroModelo);
-    } else if (activarAnimacion) {
-        if (estadoAnimacion == SUBIENDO) {
-            altura += velocidadSubida * deltaTime;
-            if (altura >= 50.0f) {
-                altura = 50.0f;
-                estadoAnimacion = AVANZANDO;
-            }
-            model = glm::translate(model, glm::vec3(0.0f, altura, 0.0f) - centroModelo);
-        }
-        else if (estadoAnimacion == AVANZANDO) {
-            avanceZ -= velocidadAvance * deltaTime;
-            if (avanceZ <= -100.0f) {
-                avanceZ = -100.0f;
-                estadoAnimacion = GIRANDO;
-            }
-            model = glm::translate(model, glm::vec3(0.0f, altura, avanceZ) - centroModelo);
-        }
-        else if (estadoAnimacion == GIRANDO) {
-            float tiempo = glfwGetTime();
-            float radio = 100.0f;
-            float velocidad = 1.0f;
+	float scaleFactor = calculateScaleFactor(minX, maxX, minY, maxY, minZ, maxZ);
 
-            float x = radio * cos(velocidad * tiempo);
-            float z = avanceZ + radio * sin(velocidad * tiempo);
-            float y = altura + 2.0f * sin(velocidad * tiempo * 2.0f);
+	float currentFrame = glfwGetTime();
+	deltaTime = currentFrame - lastFrame;
+	lastFrame = currentFrame;
 
-            model = glm::translate(model, glm::vec3(x, y, z) - centroModelo);
-            model = glm::rotate(model, tiempo, glm::vec3(0.0f, 1.0f, 0.0f));
-        }
-    } else {
-        model = glm::translate(model, -centroModelo);
-    }
+	glm::vec3 pos;
+	float angle = 0.0f;
 
-    // model = shared.chessboard_pose * model;
+	if (volverAlCentro) {
+		estadoAnimacion = SUBIENDO;
+		altura = 0.0f;
+		avanceZ = 0.0f;
+		pos = -centroModelo;
+	}
+	else if (activarAnimacion) {
+		if (estadoAnimacion == SUBIENDO) {
+			altura += velocidadSubida * deltaTime;
+			if (altura >= 50.0f) {
+				altura = 50.0f;
+				estadoAnimacion = AVANZANDO;
+			}
+			pos = glm::vec3(0.0f, altura, 0.0f) - centroModelo;
+		}
+		else if (estadoAnimacion == AVANZANDO) {
+			avanceZ -= velocidadAvance * deltaTime;
+			if (avanceZ <= -100.0f) {
+				avanceZ = -100.0f;
+				estadoAnimacion = GIRANDO;
+			}
+			pos = glm::vec3(0.0f, altura, avanceZ) - centroModelo;
+		}
+		else if (estadoAnimacion == GIRANDO) {
+			float tiempo = glfwGetTime();
+			float radio = 100.0f;
+			float velocidad = 1.0f;
 
-    glm::mat4 view = glm::mat4(1.0f); 
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), WINDOW_WIDTH / float(WINDOW_HEIGHT), 0.1f, 1000.0f);
-    glm::mat4 mvp = projection * view * model;
+			float x = radio * cos(velocidad * tiempo);
+			float z = avanceZ + radio * sin(velocidad * tiempo);
+			float y = altura + 2.0f * sin(velocidad * tiempo * 2.0f);
 
-    GLuint mvpLoc = glGetUniformLocation(objShaderProgram.id(), "mvp");
-    glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+			pos = glm::vec3(x, y, z) - centroModelo;
+			angle = tiempo * 180.0f / 3.14159f;  // en grados
+		}
+	}
+	else {
+		pos = -centroModelo;
+	}
 
-    glBindTexture(GL_TEXTURE_2D, objTexture);
-    glBindVertexArray(objVAO);
-    glDrawArrays(GL_TRIANGLES, 0, vertices.size() / 5);
+	// Aplicar transformaciones
+	glTranslatef(pos.x, pos.y, pos.z);
+	if (estadoAnimacion == GIRANDO)
+		glRotatef(angle, 0.0f, 1.0f, 0.0f);
+
+	glBindTexture(GL_TEXTURE_2D, objTexture);
+
+	glScalef(scaleFactor, scaleFactor, scaleFactor);
+	glTranslatef(-centroModelo.x, -centroModelo.y, -centroModelo.z);
+
+	glBegin(GL_TRIANGLES);
+	for (size_t i = 0; i < vertices.size(); i += 5) {
+		float x = vertices[i];
+		float y = vertices[i + 1];
+		float z = vertices[i + 2];
+		float u = vertices[i + 3];
+		float v = vertices[i + 4];
+
+		glTexCoord2f(u, v);
+		glVertex3f(x, y, z);
+	}
+	glEnd();
+	glDisable(GL_LIGHTING);
+	glDisable(GL_DEPTH_TEST);
 }
 
 
@@ -268,88 +338,105 @@ void Renderer::renderObj() {
 * 
 */
 
-void drawAxes(float len = 1.5f) {
-	glDisable(GL_LIGHTING);
+void Renderer::drawAxes(float len) {
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	gluPerspective(45.0, WINDOW_WIDTH / float(WINDOW_HEIGHT), 0.1, 100.0);
 
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+	glLoadMatrixf(glm::value_ptr(shared.chessboard_pose));
+
+	glEnable(GL_DEPTH_TEST);
 	glBegin(GL_LINES);
 	// x
 	glColor3f(1.0f, 0.0f, 0.0f);
-
 	glVertex3f(0.0f, 0.0f, 0.0f);
 	glVertex3f(len, 0.0f, 0.0f);
 
 	// y
 	glColor3f(0.0f, 1.0f, 0.0f);
-
 	glVertex3f(0.0f, 0.0f, 0.0f);
 	glVertex3f(0.0f, len, 0.0f);
 
 	// z
 	glColor3f(0.0f, 0.0f, 1.0f);
-
 	glVertex3f(0.0f, 0.0f, 0.0f);
 	glVertex3f(0.0f, 0.0f, len);
 	glEnd();
 
-	glEnable(GL_LIGHTING);
+	glPopMatrix(); // MODELVIEW
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+	glMatrixMode(GL_MODELVIEW); // Siempre regresar a MODELVIEW al final
+	glDisable(GL_DEPTH_TEST);
 }
 
-void drawSphere(float radius = 1.0f, int segments = 32) {
+
+void Renderer::drawSphere(float radius, int segments) {
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	gluPerspective(45.0, WINDOW_WIDTH / float(WINDOW_HEIGHT), 0.1, 100.0);
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glLoadMatrixf(glm::value_ptr(shared.chessboard_pose));
+
 	glColor3f(0.8f, 0.8f, 0.2f);
 
-	std::array<GLfloat, 4> mat_ambient = { 0.7f, 0.7f, 0.2f, 1.0f };
-	std::array<GLfloat, 4> mat_diffuse = { 0.8f, 0.8f, 0.2f, 1.0f };
-	glMaterialfv(GL_FRONT, GL_AMBIENT, mat_ambient.data());
-	glMaterialfv(GL_FRONT, GL_DIFFUSE, mat_diffuse.data());
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_LIGHTING); // Desactiva luces si estás solo coloreando
 
 	for (int i = 0; i <= segments; ++i) {
-		float lat0 = glm::pi<float>() * (-0.5f + float(i - 1 / segments));
+		float lat0 = glm::pi<float>() * (-0.5f + float(i - 1) / segments);
 		float z0 = radius * sin(lat0);
 		float zr0 = radius * cos(lat0);
 
-		float lat1 = glm::pi<float>() * (-0.5f + float(i / segments));
+		float lat1 = glm::pi<float>() * (-0.5f + float(i) / segments);
 		float z1 = radius * sin(lat1);
 		float zr1 = radius * cos(lat1);
 
 		glBegin(GL_QUAD_STRIP);
 		for (int j = 0; j <= segments; ++j) {
-			float lng = 2 * glm::pi<float>() * float(j / segments);
+			float lng = 2.0f * glm::pi<float>() * float(j) / segments;
 			float x = cos(lng);
 			float y = sin(lng);
 
-			glNormal3f(x * zr0, y * zr0, z0);
 			glVertex3f(x * zr0, y * zr0, z0);
-			glNormal3f(x * zr1, y * zr1, z1);
 			glVertex3f(x * zr1, y * zr1, z1);
 		}
 		glEnd();
 	}
+	glDisable(GL_DEPTH_TEST);
 }
+
 
 void processInput(GLFWwindow* window) {
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
-
-	// esto depende de que la l�gica de reinicio se haga en el Renderer
-	if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
-		/* l�gica de reiniciar el objeto */
-	}
 }
 
 void Renderer::run() {
-	std::cout << "[renderLoop] Starting loop...\n";
+	//std::cout << "[renderLoop] Loading 3D object...\n";
     updateObj();
+	std::cout << "[renderLoop] Starting loop...\n";
 	while (!glfwWindowShouldClose(window)) {
 		processInput(window);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         renderBG();
-		drawAxes();
-		drawSphere();
+		//drawAxes(5.0f);
+		// drawSphere();
 
         renderObj();
 		
-		// drawAxes() (opengl antiguo) no es c�digo no es c�digo no es c�digo
+		// drawAxes();
+
+		// drawSphere(5.0f, 20);
+
 		glfwSwapBuffers(window);
 		glfwPollEvents();
         checkGLError();

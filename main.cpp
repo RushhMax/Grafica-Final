@@ -12,20 +12,19 @@ int main() {
         Camera camara(0, shared);
         ChessboardDetector chessboard_detector(camara, shared); // se hace la calibracion
         Renderer renderer(shared); // se inicializa toda la parte de gl + shaders
-        HandDetector hand_detector(shared);//agrega la deteccion de la mano
+        HandDetector hand_detector(shared);// agrega la deteccion de la mano
 
         std::jthread inputThread([&camara, &shared]() {
-            while (shared.running) {
+            while (shared.running)
                 camara.set_frame();
-                // std::cout << "[SIZE] Good frame of " << shared.opencv_frames.front().cols << "x" << shared.opencv_frames.front().rows << "pixels\n";
-            }
             });
 
         std::jthread cvThread([&chessboard_detector,&hand_detector, &shared]() {
             while (shared.running) {
                 chessboard_detector.update();
                 hand_detector.update();
-                shared.opencv_frames.pop();
+                if (!shared.opencv_frames.empty())
+                    shared.opencv_frames.pop();
                 
                 std::this_thread::sleep_for(FRAME_RATE);
             }
